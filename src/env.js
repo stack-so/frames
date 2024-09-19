@@ -6,13 +6,15 @@ export const env = createEnv({
     NODE_ENV: z.enum(["development", "test", "production"]),
     STACK_API_KEY: z.string(),
     STACK_POINTS_ID: z.string(),
+    BASE_URL: z.string()
   },
   client: {
   },
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     STACK_API_KEY: process.env.STACK_API_KEY,
-    STACK_POINTS_ID: process.env.STACK_POINTS_ID
+    STACK_POINTS_ID: process.env.STACK_POINTS_ID,
+    BASE_URL: process.env.BASE_URL
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,

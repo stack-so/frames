@@ -1,5 +1,27 @@
-import Link from "next/link";
 import { stackClient } from "~/lib/stack";
+
+import { fetchMetadata } from "frames.js/next";
+import { env } from "~/env";
+ 
+export async function generateMetadata({ searchParams }: { searchParams: { id: string | undefined } }) {
+  const roundId = searchParams.id
+  const frameParams = roundId ? `?id=${roundId}` : ""
+
+  return {
+    title: "Stack Leaderboard",
+    // ...
+    other: {
+      // ...
+      ...(await fetchMetadata(
+        // provide a full URL to your /frames endpoint
+        new URL(
+          `/frames${frameParams}`,
+          `${env.BASE_URL}`
+        )
+      )),
+    },
+  };
+}
 
 export default async function HomePage() {
   const lb = await stackClient.getLeaderboard({
