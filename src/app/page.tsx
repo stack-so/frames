@@ -3,9 +3,10 @@ import { stackClient } from "~/lib/stack";
 import { fetchMetadata } from "frames.js/next";
 import { env } from "~/env";
  
-export async function generateMetadata({ searchParams }: { searchParams: { id: string | undefined } }) {
+export async function generateMetadata({ searchParams }: { searchParams: { id: string | undefined, fid: string | undefined } }) {
   const roundId = searchParams.id
-  const frameParams = roundId ? `?id=${roundId}` : ""
+  const fid = searchParams.fid
+  const frameParams = roundId && fid ? `?id=${roundId}&fid=${fid}` : roundId ? `?id=${roundId}` : ""
 
   return {
     title: "Stack Leaderboard",

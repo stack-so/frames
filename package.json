@@ -10,6 +10,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@neynar/nodejs-sdk": "^1.52.1",
     "@stackso/js-core": "^0.4.16",
     "@t3-oss/env-nextjs": "^0.10.1",
     "frames.js": "^0.19.1",
