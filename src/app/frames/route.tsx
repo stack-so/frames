@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
@@ -15,22 +16,112 @@ type LeaderboardPlace = {
 };
  
 const handleRequest = frames(async (ctx) => {
+  try {
   // id of the points system
   const id = ctx.searchParams.id;
 
   // fid of the user who's score to display
   // set during the share flow.
-  const fid = ctx.searchParams.fid;
+  const fid: number | undefined = isNaN(Number(ctx.searchParams.fid)) ? undefined : Number(ctx.searchParams.fid);
 
   // set if user intends to check own score
   const check = ctx.searchParams.check;
 
   const page = ctx.searchParams.page ? (isNaN(parseInt(ctx.searchParams.page)) || parseInt(ctx.searchParams.page) < 1 ? undefined : parseInt(ctx.searchParams.page)) : undefined;
 
-  if (check) {
-    // own score frame
-  } else if (fid) {
+  if (check || fid) {
+    const fidToCheck = fid ?? ctx.message?.requesterFid
+    if (!fidToCheck) {
+      throw new Error("User not found")
+    }
+
     // user score frame
+    const [lb, userData] = await Promise.all([
+      // Get the overall leaderboard
+      stackClient.getLeaderboard({
+        limit: 3,
+        socials: {
+          farcaster: true
+        }
+      }), 
+      // If the user clicked a button, fetch their score
+      (async () => {
+        const [user] = await fetchUsers([fidToCheck])
+        if (!user) {
+          throw new Error("User not found")
+        } else if (!user.verified_addresses.eth_addresses[0]) {
+          return {
+            user: user,
+            rank: null
+          }
+        }
+        return {
+          user: user,
+          rank: await stackClient.getLeaderboardRank(user.verified_addresses.eth_addresses[0])
+        }
+      })()
+    ])
+
+    const imageUrl: string | undefined = lb.metadata.bannerUrl ?? undefined
+    const title = lb.metadata.name
+    const subtitle = lb.metadata.description
+    const numParcipants = lb.stats.total
+    const primaryColor = lb.metadata.primaryColor
+    const username = userData.user.display_name ?? userData?.user.username
+    const avatar = userData.user.pfp_url
+
+    let place = null
+    let points = 0
+    if (userData.rank) {
+      place = userData.rank.rank as number
+      points = userData.rank.points as number
+    }
+
+    return {
+      image: (
+        <Layout 
+          imageUrl={imageUrl} 
+          title={title} 
+          subtitle={subtitle} 
+          numParcipants={numParcipants} 
+          primaryColor={primaryColor}
+        >
+          <div tw="flex flex-col justify-center flex-grow">
+            <div tw="flex flex-col">
+              <div tw="flex items-center" style={{
+                fontFamily: "medium",
+              }}>
+                <div tw="flex flex-none mr-7">
+                  <div tw="flex p-[10px] flex-none rounded-full items-center justify-center text-white bg-black text-[30px]">
+                    #{place ?? " -"}
+                  </div>
+                </div>
+                <img src={avatar} tw="w-20 h-20 rounded-full mr-[30px]" />
+                <div tw="flex-grow flex">{username}</div>
+              </div>
+            </div>
+            <div tw="flex text-[100px] mt-10">{formatNumber(points)} points</div>
+          </div>
+        </Layout>
+      ),
+      imageOptions: {
+        aspectRatio: "1:1",
+      },
+      buttons: [
+        fid ? (
+          <Button action="link" target={"https://warpcast.com"}>
+            Share
+          </Button>
+        ) : (
+          <Button action="post" target={{ query: { check: true } }}>
+            Check Mine
+          </Button>
+        ),
+        <Button action="post" target={{ query: { } }}>
+          Leaderboard
+        </Button>,
+      ],
+    };
   } else {
     // leaderboard frame - use page to fetch an offset
     const limit = 3;
@@ -105,142 +196,29 @@ const handleRequest = frames(async (ctx) => {
       ],
     };
   }
-
-  // Fetch the leaderboard and user rank in parallel.
-  const [lb, userData] = await Promise.all([
-    // Get the overall leaderboard
-    stackClient.getLeaderboard({
-      limit: 3,
-      socials: {
-        farcaster: true
-      }
-    }), 
-    // If the user clicked a button, fetch their score
-    (async () => {
-      if (!ctx.message) {
-        return null
-      }
-      const [user] = await fetchUsers([ctx.message.requesterFid])
-      if (!user?.verified_addresses.eth_addresses[0]) {
-        return null
-      }
-      return {
-        user: user,
-        rank: await stackClient.getLeaderboardRank(user.verified_addresses.eth_addresses[0])
-      }
-    })()
-  ])
-
-  if (!id) {
-    // Return poor configuration
-  }
-
-  const imageUrl: string | undefined = lb.metadata.bannerUrl ?? undefined
-  const title = lb.metadata.name
-  const subtitle = lb.metadata.description
-  const numParcipants = lb.stats.total
-  const primaryColor = lb.metadata.primaryColor
-
-  const leaderboard: LeaderboardPlace[] = lb.leaderboard.map((entry, i) => ({
-    rank: i + 1,
-    name: entry.identities.Farcaster.displayName! as string,
-    score: entry.points,
-    avatar: entry.identities.Farcaster.profileImageUrl as string,
-  }));
-
-  if (fid !== undefined) {
-    if (!userData?.rank) {
-      // Handle unable to fetch
-      throw new Error("Unable to fetch user data")
-    }
-
-    console.log("User data", userData?.rank)
-
-    const username = userData.user.display_name ?? userData?.user.username
-    const avatar = userData.user.pfp_url
-    const place = userData.rank.rank
-    const points = userData.rank.points
-
+  } catch(e: any) {
     return {
       image: (
-        <Layout 
-          imageUrl={imageUrl} 
-          title={title} 
-          subtitle={subtitle} 
-          numParcipants={numParcipants} 
-          primaryColor={primaryColor}
-        >
-          <div tw="flex flex-col justify-center flex-grow">
-            <div tw="flex flex-col">
-              <div tw="flex items-center" style={{
-                fontFamily: "medium",
-              }}>
-                <div tw="flex flex-none mr-7">
-                  <div tw="flex p-[10px] flex-none rounded-full items-center justify-center text-white bg-black text-[30px]">
-                    #{place}
-                  </div>
-                </div>
-                <img src={avatar} tw="w-20 h-20 rounded-full mr-[30px]" />
-                <div tw="flex-grow flex">{username}</div>
+        <div tw="flex flex-col flex-grow items-center justify-center bg-[#F5F5F5] w-full p-[20px]">
+          <div tw="flex flex-col flex-grow items-center justify-center">
+            <p>{e.message}</p>
+          </div>
+          <div tw="w-full flex items-center justify-end gap-30 text-[25px]">
+            <div tw="flex mr-3">Powered by</div>
+            <div tw="flex bg-black/10 items-center justify-center rounded-xl py-[8px] px-[10px] gap-1">
+              <div tw="flex w-6 h-6 rounded bg-black mr-3">
               </div>
+              Stack
             </div>
-            <div tw="flex text-[100px] mt-10">{formatNumber(points)} points</div>
           </div>
-        </Layout>
+        </div>
       ),
       imageOptions: {
         aspectRatio: "1:1",
       },
       buttons: [
-        <Button action="post" target={{ query: { value: "No" } }}>
-          Check Mine
-        </Button>,
-        <Button action="post" target={{ query: { value: "No" } }}>
-          View Leaderboard
-        </Button>,
-      ],
-    };
-  } else {
-    console.log("Image", imageUrl)
-    return {
-      image: (
-        <Layout 
-          imageUrl={imageUrl} 
-          title={title} 
-          subtitle={subtitle} 
-          numParcipants={numParcipants} 
-          primaryColor={primaryColor}
-        >
-          <div tw="flex flex-col flex-grow mt-14">
-            {leaderboard.map(({ rank, name, score, avatar }, i) => (
-              <div tw="flex items-center mb-[30px]" key={rank} style={{
-                fontFamily: "medium",
-              }}>
-                <div tw="flex w-[75px] flex-none">
-                  <div tw="flex w-12 h-12 rounded-full items-center justify-center text-white bg-black pt-1 text-[30px]">
-                    {rank}
-                  </div>
-                </div>
-                <img src={avatar} tw="w-20 h-20 rounded-full mr-[30px]" />
-                <div tw="flex-grow flex">{name}</div>
-                <div tw="flex">{formatNumber(score)}</div>
-              </div>
-            ))}
-          </div>
-        </Layout>
-      ),
-      imageOptions: {
-        aspectRatio: "1:1",
-      },
-      buttons: [
-        <Button action="post" target={{ query: { value: "No" } }}>
-          Check my place
-        </Button>,
-        <Button action="post" target={{ query: { value: "Yes" } }}>
-          View on Stack
-        </Button>,
-        <Button action="post" target={{ query: { value: "No" } }}>
-          →
+        <Button action="post" target={{ query: {} }}>
+          Back to Frame
         </Button>,
       ],
     };
