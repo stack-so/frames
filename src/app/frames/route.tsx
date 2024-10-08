@@ -5,7 +5,6 @@
 /* eslint-disable react/jsx-key */
 import { Button } from "frames.js/next";
 import { frames } from "./frames";
-import { stackClient } from "~/lib/stack";
 import { fetchUsers } from "~/lib/neynar";
 import { StackClient } from "@stackso/js-core";
 import { env } from "~/env";
@@ -123,7 +122,7 @@ const handleRequest = frames(async (ctx) => {
         aspectRatio: "1:1",
       },
       buttons: [
-        fid ? (
+        !fid ? (
           <Button action="link" target={"https://warpcast.com"}>
             Share
           </Button>
