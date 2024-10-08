@@ -7,18 +7,27 @@ import { Button } from "frames.js/next";
 import { frames } from "./frames";
 import { stackClient } from "~/lib/stack";
 import { fetchUsers } from "~/lib/neynar";
+import { StackClient } from "@stackso/js-core";
+import { env } from "~/env";
 
 type LeaderboardPlace = {
   rank: number;
   name: string;
   score: number;
-  avatar: string;
+  avatar?: string;
 };
  
 const handleRequest = frames(async (ctx) => {
   try {
   // id of the points system
-  const id = ctx.searchParams.id;
+  const idString = ctx.searchParams.id;
+  if (!idString) {
+    throw new Error("Invalid points system id")
+  }
+  const id = isNaN(Number(idString)) ? undefined : Number(idString);
+  if (!id) {
+    throw new Error("Invalid points system id")
+  }
 
   // fid of the user who's score to display
   // set during the share flow.
@@ -26,8 +35,12 @@ const handleRequest = frames(async (ctx) => {
 
   // set if user intends to check own score
   const check = ctx.searchParams.check;
-
   const page = ctx.searchParams.page ? (isNaN(parseInt(ctx.searchParams.page)) || parseInt(ctx.searchParams.page) < 1 ? undefined : parseInt(ctx.searchParams.page)) : undefined;
+
+  const client = new StackClient({
+    apiKey: env.STACK_API_KEY,
+    pointSystemId: id,
+  })
 
   if (check || fid) {
     const fidToCheck = fid ?? ctx.message?.requesterFid
@@ -38,12 +51,14 @@ const handleRequest = frames(async (ctx) => {
     // user score frame
     const [lb, userData] = await Promise.all([
       // Get the overall leaderboard
-      stackClient.getLeaderboard({
-        limit: 3,
-        socials: {
-          farcaster: true
-        }
-      }), 
+      (async () => {
+        return client.getLeaderboard({
+          limit: 3,
+          socials: {
+            farcaster: true
+          }
+        })
+      })(),
       // If the user clicked a button, fetch their score
       (async () => {
         const [user] = await fetchUsers([fidToCheck])
@@ -57,7 +72,7 @@ const handleRequest = frames(async (ctx) => {
         }
         return {
           user: user,
-          rank: await stackClient.getLeaderboardRank(user.verified_addresses.eth_addresses[0])
+          rank: await client.getLeaderboardRank(user.verified_addresses.eth_addresses[0])
         }
       })()
     ])
@@ -113,11 +128,11 @@ const handleRequest = frames(async (ctx) => {
             Share
           </Button>
         ) : (
-          <Button action="post" target={{ query: { check: true } }}>
+          <Button action="post" target={{ query: { id, check: true } }}>
             Check Mine
           </Button>
         ),
-        <Button action="post" target={{ query: { } }}>
+        <Button action="post" target={{ query: { id } }}>
           Leaderboard
         </Button>,
       ],
@@ -127,7 +142,7 @@ const handleRequest = frames(async (ctx) => {
     const limit = 3;
     const offset = page ? (page - 1) * limit : 0;
     const [lb] = await Promise.all([
-      stackClient.getLeaderboard({
+      client.getLeaderboard({
         limit,
         offset,
         socials: {
@@ -142,12 +157,24 @@ const handleRequest = frames(async (ctx) => {
     const numParcipants = lb.stats.total
     const primaryColor = lb.metadata.primaryColor
 
-    const leaderboard: LeaderboardPlace[] = lb.leaderboard.map((entry, i) => ({
-      rank: i + 1 + offset,
-      name: entry.identities.Farcaster.displayName! as string,
-      score: entry.points,
-      avatar: entry.identities.Farcaster.profileImageUrl as string,
-    }));
+    const leaderboard: LeaderboardPlace[] = lb.leaderboard.map((entry, i) => {
+      if (entry.identities?.Farcaster) {
+        return {
+          rank: i + 1 + offset,
+          name: entry.identities.Farcaster.displayName! as string,
+          score: entry.points,
+          avatar: entry.identities.Farcaster.profileImageUrl as string,
+        }
+      } else {
+        // 0xFC31...9B65
+        const shortenedAddress = `${entry.address.slice(0, 6)}...${entry.address.slice(-4)}`
+        return {
+          rank: i + 1 + offset,
+          name: shortenedAddress,
+          score: entry.points,
+        }
+      }
+    });
 
     return {
       image: (
@@ -172,7 +199,11 @@ const handleRequest = frames(async (ctx) => {
                     {rank}
                   </div>
                 </div>
-                <img src={avatar} tw="w-20 h-20 rounded-full mr-[30px]" />
+                {avatar ? (
+                  <img src={avatar} tw="w-20 h-20 rounded-full mr-[30px]" />
+                ) : (
+                  <div tw="w-20 h-20 rounded-full mr-[30px] flex" style={{backgroundColor: stringToRandomHash(name)}}></div>
+                )}
                 <div tw="flex-grow flex">{name}</div>
                 <div tw="flex">{formatNumber(score)}</div>
               </div>
@@ -184,13 +215,13 @@ const handleRequest = frames(async (ctx) => {
         aspectRatio: "1:1",
       },
       buttons: [
-        <Button action="post" target={{ query: { check: true } }}>
+        <Button action="post" target={{ query: { id, check: true } }}>
           Check my place
         </Button>,
         <Button action="link" target="https://stack.so">
           View on Stack
         </Button>,
-        <Button action="post" target={{ query: { page: page ? page + 1 : 2 } }}>
+        <Button action="post" target={{ query: { id, page: page ? page + 1 : 2 } }}>
           →
         </Button>,
       ],
@@ -217,7 +248,7 @@ const handleRequest = frames(async (ctx) => {
         aspectRatio: "1:1",
       },
       buttons: [
-        <Button action="post" target={{ query: {} }}>
+        <Button action="post" target={{ query: { id: ctx.searchParams.id } }}>
           Back to Frame
         </Button>,
       ],
@@ -227,6 +258,29 @@ const handleRequest = frames(async (ctx) => {
 
 function formatNumber(num: number) {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function stringToRandomHash(input: string) {
+  // Convert the input string to a number using the built-in hashCode function
+  const hash = hashCode(input);
+
+  // Map the hash to a value between 0 and 0xFFFFFF (16777215)
+  const color = Math.abs(hash) % 0x1000000;
+
+  // Convert the number to a hex string with leading zeros
+  const hexColor = color.toString(16).padStart(6, '0');
+
+  // Prepend the hash symbol and return the result
+  return `#${hexColor}`;
+}
+
+// Helper function to hash a string (from https://stackoverflow.com/a/7616484/2339142)
+function hashCode(str: string) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return hash;
 }
 
 type LayoutProps = {
