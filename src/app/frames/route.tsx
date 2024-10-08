@@ -123,7 +123,7 @@ const handleRequest = frames(async (ctx) => {
       },
       buttons: [
         !fid ? (
-          <Button action="link" target={"https://warpcast.com"}>
+          <Button action="link" target={formatWarpcastShareLink(id, userData.user.fid)}>
             Share
           </Button>
         ) : (
@@ -254,6 +254,13 @@ const handleRequest = frames(async (ctx) => {
     };
   }
 });
+
+function formatWarpcastShareLink(id: number, fid: number) {
+  const shareText = encodeURIComponent('Check out my score on the leaderboard!');
+  const embedUrl = encodeURIComponent(`${env.BASE_URL}?id=${id}&fid=${fid}`);
+
+  return `https://warpcast.com/~/compose?text=${shareText}&embeds[]=${embedUrl}`;
+}
 
 function formatNumber(num: number) {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
