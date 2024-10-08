@@ -100,22 +100,12 @@ const handleRequest = frames(async (ctx) => {
           numParcipants={numParcipants} 
           primaryColor={primaryColor}
         >
-          <div tw="flex flex-col justify-center flex-grow">
-            <div tw="flex flex-col">
-              <div tw="flex items-center" style={{
-                fontFamily: "medium",
-              }}>
-                <div tw="flex flex-none mr-7">
-                  <div tw="flex p-[10px] flex-none rounded-full items-center justify-center text-white bg-black text-[30px]">
-                    #{place ?? " -"}
-                  </div>
-                </div>
-                <img src={avatar} tw="w-20 h-20 rounded-full mr-[30px]" />
-                <div tw="flex-grow flex">{username}</div>
-              </div>
-            </div>
-            <div tw="flex text-[100px] mt-10">{formatNumber(points)} points</div>
-          </div>
+          <UserRankView
+            place={place}
+            username={username}
+            avatar={avatar}
+            points={points}
+          />
         </Layout>
       ),
       imageOptions: {
@@ -361,6 +351,68 @@ function Layout(p: LayoutProps) {
 function Users() {
   return (
     <svg width="36" height="30" viewBox="0 0 36 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 27.9442C2 24.017 5.184 20.833 9.11112 20.833H16.2222C20.1494 20.833 22.3334 24.017 22.3334 27.9442" stroke="#090A0C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path><path d="M25.1111 4.21289C27.6662 4.21289 29.5556 6.10222 29.5556 8.65734C29.5556 11.2124 27.6662 13.1018 25.1111 13.1018" stroke="#090A0C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16.9419 4.82656C19.4031 7.28774 19.4031 11.016 16.9419 13.4772C14.4807 15.9384 10.7524 15.9384 8.29126 13.4772C5.83008 11.016 5.83008 7.28774 8.29126 4.82656C10.7524 2.36538 14.4807 2.36538 16.9419 4.82656Z" stroke="#090A0C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path><path d="M26.889 19.0557C30.816 19.0557 34 22.2396 34 26.1668" stroke="#090A0C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+  )
+}
+
+function UserPointsView({
+  place,
+  username,
+  avatar,
+  points,
+}: {
+  place: number | null;
+  username: string;
+  avatar: string | undefined;
+  points: number;
+}) {
+  return (
+    <div tw="flex flex-col justify-center flex-grow">
+      <div tw="flex flex-col">
+        <div tw="flex items-center" style={{
+          fontFamily: "medium",
+        }}>
+          <div tw="flex flex-none mr-7">
+            <div tw="flex p-[10px] flex-none rounded-full items-center justify-center text-white bg-black text-[30px]">
+              #{place ?? " -"}
+            </div>
+          </div>
+          <img src={avatar} tw="w-20 h-20 rounded-full mr-[30px]" />
+          <div tw="flex-grow flex">{username}</div>
+        </div>
+      </div>
+      <div tw="flex text-[100px] mt-10">{formatNumber(points)} points</div>
+    </div>
+  )
+}
+
+function UserRankView({
+  place,
+  username,
+  avatar,
+  points,
+}: {
+  place: number | null;
+  username: string;
+  avatar: string | undefined;
+  points: number;
+}) {
+  return (
+    <div tw="flex flex-col justify-center flex-grow">
+      <div tw="flex flex-col">
+        <div tw="flex items-center" style={{
+          fontFamily: "medium",
+        }}>
+          <img src={avatar} tw="w-20 h-20 rounded-full mr-[30px]" />
+          <div tw="flex-grow flex">{username}</div>
+          <div tw="flex flex-none mr-7">
+            <div tw="flex">
+              {formatNumber(points)} points
+            </div>
+          </div>
+        </div>
+      </div>
+      <div tw="flex text-[100px] mt-10">{place ? `#${formatNumber(place)}` : "# --"}</div>
+    </div>
   )
 }
  
